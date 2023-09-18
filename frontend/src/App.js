@@ -15,17 +15,16 @@ const App = () => {
 
 	const ProductCard = ({ product }) => {
 		return (
-		  <div className="App">
+		  <div className="card">
 			<table>
 				{product.map((product, index) => (
 				<tr key={index}>
 					<td>{product.id}</td>
-					<td>{product.name}</td>
-					<td>{product.price}</td>
-					<td>{product.engdesc}</td>
+					<td>{product.productname}</td>
 					<td>{product.shortdescription}</td>
 					<td>{product.longdescription}</td>
-					<td>{product.category}</td>
+					<td>{product.name}</td>
+					<td>{product.price}</td>
 				</tr>
 				))}
 			</table>
