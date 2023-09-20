@@ -74,7 +74,7 @@ def ann_similarity_search():
         LIMIT 10 """
         )
 
-    if brand != "":
+    if brand != "" and brand != "null" and brand != "None" and brand != "Unknown" and brand != "N/A" and brand != "Not specified":
         query = SimpleStatement(
             f"""
             SELECT product_id,brand,saleprice,product_categories, product_name_en, short_description_en, long_description_en
@@ -95,7 +95,7 @@ def ann_similarity_search():
             LIMIT 10 """
             )
         
-        if brand != "":
+        if brand != "" and brand != "null" and brand != "None" and brand != "Unknown" and brand != "N/A" and brand != "Not specified":
             query = SimpleStatement(
                 f"""
                 SELECT product_id,brand,saleprice,product_categories, product_name, short_description, long_description
@@ -107,6 +107,29 @@ def ann_similarity_search():
     print(query)
     results = session.execute(query)
     top_products = results._current_rows
+    print(len(top_products))
+
+    if len(top_products) == 0:
+        if language == "th": 
+            query = SimpleStatement(
+                f"""
+                SELECT product_id, brand,saleprice,product_categories, product_name, short_description, long_description
+                FROM {keyspace}.products_cg_hybrid
+                ORDER BY {column} ANN OF {embeddings}
+                LIMIT 10 """
+                )
+        else:
+            query = SimpleStatement(
+                f"""
+                SELECT product_id, brand,saleprice,product_categories, product_name_en, short_description_en, long_description_en
+                FROM {keyspace}.products_cg_hybrid
+                ORDER BY {column} ANN OF {embeddings}
+                LIMIT 10 """
+                )
+
+        results = session.execute(query)
+        top_products = results._current_rows
+
     response = []
     for r in top_products:
         if language == "th":
