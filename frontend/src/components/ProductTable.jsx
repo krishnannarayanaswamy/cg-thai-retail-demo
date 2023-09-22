@@ -3,7 +3,7 @@ import { useState } from 'react';
 const ProductTable = ({ theadData, tbodyData }) => {
    
     return (
-        <table>
+        <table style={{"borderWidth":"1px", 'borderColor':"#aaaaaa", 'borderStyle':'solid'}}>
             <thead>
                <tr>
                 {theadData.map(heading => {

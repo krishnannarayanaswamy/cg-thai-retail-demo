@@ -6,7 +6,7 @@ const FormSection = ({ generateResponse }) => {
     return (
         <div className="form-section">
             <textarea
-                rows="5"
+                rows="2"
                 className="form-control"
                 placeholder="Ask me anything..."
                 value={newQuestion}

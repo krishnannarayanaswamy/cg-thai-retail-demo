@@ -76,6 +76,7 @@ button {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.5s ease-in-out;
+  margin: 5px;
 }
 
 .btn:hover {
@@ -132,3 +133,21 @@ button {
 .copy-icon:hover {
   background-color: #CA228C;
 }
+
+.answer{ 
+  white-space: pre-wrap;
+  width: auto; /* Adjust the width as per your requirement */
+  margin: 0 auto; /* Centers the pre element horizontally */
+}
+
+.card img {
+  width: 200%;  
+  object-fit: contain;
+}
+
+@media only screen and (max-width: 767px) {
+  .card img {
+    width: 200%;
+    min-width: 50px;    
+  }
+  }

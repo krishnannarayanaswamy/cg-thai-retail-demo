@@ -3,8 +3,9 @@ import { Configuration, OpenAIApi } from 'openai';
 import FormSection from './components/FormSection';
 import AnswerSection from './components/AnswerSection';
 
-import { useState } from 'react';
-
+import React, {useEffect, useState} from 'react';
+import { Hint } from 'react-autocomplete-hint';
+import Iframe from 'react-iframe'
 import axios from 'axios';
 
 
@@ -12,6 +13,17 @@ const App = () => {
 
 	const [storedValues, setStoredValues] = useState([]);
 	const [products, setProducts] = useState([]);
+	const [hintData, setHintData] = useState([])
+	const [text, setText] = useState('')
+
+	const getData = async () => {
+		const res = await axios.get('http://localhost:9000/getbrand')
+			setHintData(res.data.brands)	
+	  }
+	
+	  useEffect(()=> {
+		getData()
+	  },[])
 
 	const ProductCard = ({ product }) => {
 		return (
@@ -22,9 +34,9 @@ const App = () => {
 					<td>{product.id}</td>
 					<td>{product.productname}</td>
 					<td>{product.shortdescription}</td>
-					<td>{product.longdescription}</td>
 					<td>{product.name}</td>
 					<td>{product.price}</td>
+					<td><img referrerPolicy="no-referrer" src={product.image_link}></img></td>
 				</tr>
 				))}
 			</table>
@@ -36,7 +48,7 @@ const App = () => {
 	const generateResponse = async (newQuestion, setNewQuestion) => {
 
 		try {
-			const response = await axios.post('http://localhost:9000/similaritems', { newQuestion });
+			const response = await axios.post('http://localhost:9000/similaritems', { newQuestion, text });
 			if (response.data.botresponse) {
 				setStoredValues([
 					{
@@ -49,6 +61,7 @@ const App = () => {
 			}
 
 			setProducts(response.data.products);
+			setText('')
 			
 		  } catch (error) {
 			console.error(error);
@@ -67,16 +80,31 @@ const App = () => {
 					</p>
 				)}
 			</div>
+			
+			<div className="App">
+				<p>Know the brand? Try typing if you want</p>
+				<br/>
+				<div className="form-section">
+				<Hint options={hintData} allowTabFill>
+					<input className="textarea"
+						value={text}
+						onChange={(e) => setText(e.target.value)} 
+					/>
+				</Hint>
+				</div>
+			</div>
 
 			<FormSection generateResponse={generateResponse} />
 
 			{storedValues.length > 0 && <AnswerSection storedValues={storedValues} />}
 
 			<ProductCard product={products} />
-
 		
 
+		
 		</div>
+
+
 	);
 };
 
