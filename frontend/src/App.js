@@ -17,7 +17,7 @@ const App = () => {
 	const [text, setText] = useState('')
 
 	const getData = async () => {
-		const res = await axios.get('http://localhost:9000/getbrand')
+		const res = await axios.get('http://44.204.232.212:9000/getbrand')
 			setHintData(res.data.brands)	
 	  }
 	
@@ -48,7 +48,7 @@ const App = () => {
 	const generateResponse = async (newQuestion, setNewQuestion) => {
 
 		try {
-			const response = await axios.post('http://localhost:9000/similaritems', { newQuestion, text });
+			const response = await axios.post('http://44.204.232.212:9000/similaritems', { newQuestion, text });
 			if (response.data.botresponse) {
 				setStoredValues([
 					{
