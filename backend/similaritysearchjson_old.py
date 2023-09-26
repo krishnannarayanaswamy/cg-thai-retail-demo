@@ -78,7 +78,7 @@ def detect_brand(customer_query):
 
     filter_keyword=json.loads(brand_category)
     brand = str(filter_keyword['brand'].upper())
-    print("System detected brand with GPT 4:" + brand)
+    print("System detected brand with GPT:" + brand)
 
 def translate_lang(query):
     message_objects = []
@@ -89,8 +89,7 @@ def translate_lang(query):
     messages=message_objects
     )
     text_in_en = completion.choices[0].message.content
-    print("System translated text with GPT 4:" + text_in_en)
-   
+    print(text_in_en)
     return text_in_en
 
 
@@ -108,22 +107,21 @@ def ann_similarity_search():
     
     customer_text = []
     if language == "th":
-        customer_query_en = translate_lang(customer_query)
-    else:
-        customer_query_en = customer_query
+        customer_query = translate_lang(customer_query)
+        language = "en"
 
     customer_text.append(customer_query)
-    
+    #response = co.embed(texts=customer_text, model=model_id)
     if (brand == "" or brand is None):
-       detect_brand(customer_query_en)
+       detect_brand(customer_query)
     #brand = ""
 
-    embeddings = openai.Embedding.create(input=customer_query_en, model=model_id)['data'][0]['embedding']
+    embeddings = openai.Embedding.create(input=customer_query, model=model_id)['data'][0]['embedding']
    # embeddings = response.embeddings[0]
     column = "openai_description_embedding_en"
     query = SimpleStatement(
         f"""
-        SELECT product_id, brand,image_link, saleprice,product_categories, product_name, product_name_en, short_description, short_description_en, long_description, long_description_en
+        SELECT product_id, brand,image_link, saleprice,product_categories, product_name_en, short_description_en, long_description_en
         FROM {keyspace}.products_cg_hybrid
         ORDER BY {column} ANN OF {embeddings}
         LIMIT 10 """
@@ -132,22 +130,51 @@ def ann_similarity_search():
     if brand != "" and brand != "null" and brand != "None" and brand != "Unknown" and brand != "N/A" and brand != "Not specified":
         query = SimpleStatement(
             f"""
-            SELECT product_id,brand,image_link,saleprice,product_categories, product_name, product_name_en, short_description, short_description_en, long_description, long_description_en
+            SELECT product_id,brand,image_link,saleprice,product_categories, product_name_en, short_description_en, long_description_en
             FROM {keyspace}.products_cg_hybrid
             WHERE product_name : ' + {brand} + '
             ORDER BY {column} ANN OF {embeddings}
             LIMIT 10 """
             )
-  
-    #print(query)
+
+
+    if language == "th":
+        column = "openai_description_embedding_th"
+        query = SimpleStatement(
+            f"""
+            SELECT product_id, brand,image_link,saleprice,product_categories, product_name, short_description, long_description
+            FROM {keyspace}.products_cg_hybrid
+            ORDER BY {column} ANN OF {embeddings}
+            LIMIT 10 """
+            )
+        
+        if brand != "" and brand != "null" and brand != "None" and brand != "Unknown" and brand != "N/A" and brand != "Not specified":
+            query = SimpleStatement(
+                f"""
+                SELECT product_id,brand,image_link,saleprice,product_categories, product_name, short_description, long_description
+                FROM {keyspace}.products_cg_hybrid
+                WHERE product_name : ' + {brand} + '
+                ORDER BY {column} ANN OF {embeddings}
+                LIMIT 10 """
+                )
+    print(query)
     results = session.execute(query)
     top_products = results._current_rows
     print(len(top_products))
 
     if len(top_products) == 0:
-        query = SimpleStatement(
+        if language == "th": 
+            query = SimpleStatement(
                 f"""
-                SELECT product_id,brand,image_link,saleprice,product_categories, product_name, product_name_en, short_description, short_description_en, long_description, long_description_en
+                SELECT product_id, brand,image_link,saleprice,product_categories, product_name, short_description, long_description
+                FROM {keyspace}.products_cg_hybrid
+                ORDER BY {column} ANN OF {embeddings}
+                LIMIT 10 """
+                )
+        else:
+            query = SimpleStatement(
+                f"""
+                SELECT product_id, brand,image_link,saleprice,product_categories, product_name_en, short_description_en, long_description_en
                 FROM {keyspace}.products_cg_hybrid
                 ORDER BY {column} ANN OF {embeddings}
                 LIMIT 10 """
@@ -182,7 +209,7 @@ def ann_similarity_search():
                 'category': r.product_categories,
                 'image_link': image
             })
-    #print(response)
+    print(response)
 
     #message_objects = []
    #message_objects.append({"role":"system",

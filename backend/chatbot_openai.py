@@ -1,63 +1,90 @@
-import os
 import streamlit as st
 import dotenv
-
-#from thai_eval import db
-from langchain.llms import OpenAI
-from langchain.llms import Cohere
-from langchain.vectorstores import Cassandra
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.chains import ConversationalRetrievalChain, LLMChain
-from langchain.chains.question_answering import load_qa_chain
-from langchain.prompts import PromptTemplate
+import langchain
 import json
+
+from cassandra.cluster import Session
+from cassandra.query import PreparedStatement
+
+from langchain.agents.agent_toolkits import create_retriever_tool, create_conversational_retrieval_agent
+from langchain.chat_models import ChatOpenAI
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.callbacks import StreamlitCallbackHandler
+from langchain.schema import BaseRetriever, Document, SystemMessage
+
 from cassandra.cluster import Cluster, Session
 from cassandra.auth import PlainTextAuthProvider
-from cassandra.query import SimpleStatement
-import langchain
-from langchain.schema import BaseRetriever
-from langchain.schema import Document
-from pydantic import BaseModel
 
+# Enable langchain debug mode
 langchain.debug = True
 
 dotenv.load_dotenv(dotenv.find_dotenv())
-
-st.set_page_config(layout="wide")
 
 
 class AstraProductRetriever(BaseRetriever):
     session: Session
     embedding: OpenAIEmbeddings
- 
+    lang: str = "English"
+    search_statement_en: PreparedStatement = None
+    search_statement_th: PreparedStatement = None
+
     class Config:
         arbitrary_types_allowed = True
- 
+
     def get_relevant_documents(self, query):
         docs = []
         embeddingvector = self.embedding.embed_query(query)
-        column = "openai_description_embedding_en"
-        query = SimpleStatement(
-        f"""
-        SELECT product_id, brand,saleprice,product_categories, product_name_en, short_description_en, long_description_en
-        FROM hybridretail.products_cg_hybrid
-        ORDER BY {column} ANN OF {embeddingvector}
-        LIMIT 5 """
-        )
-
-        results = session.execute(query)
+        if self.lang == "Thai":
+            if self.search_statement_th is None:
+                self.search_statement_th = self.session.prepare("""
+                    SELECT
+                        product_id,
+                        brand,
+                        saleprice,
+                        product_categories,
+                        product_name,
+                        short_description,
+                        long_description
+                    FROM hybridretail.products_cg_hybrid
+                    ORDER BY openai_description_embedding_th ANN OF ?
+                    LIMIT ?
+                    """)
+            query = self.search_statement_th
+        else:
+            if self.search_statement_en is None:
+                self.search_statement_en = self.session.prepare("""
+                    SELECT
+                        product_id,
+                        brand,
+                        saleprice,
+                        product_categories,
+                        product_name_en,
+                        short_description_en,
+                        long_description_en
+                    FROM hybridretail.products_cg_hybrid
+                    ORDER BY openai_description_embedding_en ANN OF ?
+                    LIMIT ?
+                    """)
+            query = self.search_statement_en
+        results = self.session.execute(query, [embeddingvector, 5])
         top_products = results._current_rows
-
         for r in top_products:
             docs.append(Document(
-                page_content=r.product_name_en,
-                metadata={"product id": r.product_id,"brand" : r.brand, "product category" : r.product_categories, "product name": r.product_name_en, "description" : r.short_description_en}
+                id=r.product_id,
+                page_content=r.product_name if self.lang == "Thai" else r.product_name_en,
+                metadata={"product id": r.product_id,
+                          "brand": r.brand,
+                          "product category": r.product_categories,
+                          "product name": r.product_name if self.lang == "Thai" else r.product_name_en,
+                          "description": r.short_description if self.lang == "Thai" else r.short_description_en,
+                          "price": r.saleprice
+                          }
             ))
- 
+
         return docs
 
 
-def get_astra_session(scb: str, secrets: str) -> Session:
+def get_session(scb: str, secrets: str) -> Session:
     """
     Connect to Astra DB using secure connect bundle and credentials.
 
@@ -85,125 +112,60 @@ def get_astra_session(scb: str, secrets: str) -> Session:
 
 
 @st.cache_resource
-def get_session():
-    print('Connecting to Astra DB...')
-    return get_astra_session(scb='./config/secure-connect-multilingual.zip',
-                       secrets='./config/multilingual-token.json')
+def create_chatbot(lang: str):
+    print(f"Creating chatbot for {lang}...")
+    session = get_session(scb='./config/secure-connect-multilingual.zip',
+                          secrets='./config/multilingual-token.json')
+    llm = ChatOpenAI(temperature=0, streaming=True)
+    embedding = OpenAIEmbeddings()
+    retriever = AstraProductRetriever(
+        session=session, embedding=embedding, lang=lang)
+    retriever_tool = create_retriever_tool(
+        retriever, "products_retrevier", "Useful when searching for products from a product description. Prices are in THB.")
+    system_message = "You are a customer service of a home improvement store and you are asked to pick products for a customer."
+    if lang == "Thai":
+        system_message = f"{system_message} All the responses should be in Thai language."
+    message = SystemMessage(content=system_message)
+    agent_executor = create_conversational_retrieval_agent(
+        llm=llm, tools=[retriever_tool], system_message=message, verbose=True)
+    return agent_executor
 
-
-session = get_session()
-
-#cohere_embedding = O(model='embed-multilingual-v2.0',)
-embedding = OpenAIEmbeddings()
-retriever = AstraProductRetriever(session=session, embedding=embedding)
-
-#product_store = Cassandra(embedding=cohere_embedding,
-#                          session=session,
-#                          keyspace='bench',
-#                          table_name='bench_cohere_en')
-#chat_history_store = Cassandra(embedding=cohere_embedding,
-#                               session=session,
-#                               keyspace='bench',
-#                               table_name='chat_history')
-
-#cohere = Cohere(cohere_api_key=os.environ['COHERE_API_KEY'])
-
-template = """Given the following chat history and a follow up question, rephrase the follow up input question to be a standalone question.
-Or end the conversation if it seems like it's done.
-Chat History:\"""
-{chat_history}
-\"""
-Follow Up Input: \"""
-{question}
-\"""
-Standalone question:"""
-
-product_list_prompt = PromptTemplate.from_template(template)
- 
-template = """You are a friendly, conversational home improvement retail shopping assistant. Use the following context including product names, descriptions, and keywords to show the shopper whats available, help find what they want, and answer any questions.
- 
-It's ok if you don't know the answer.
-Context:\"""
- 
-{context}
-\"""
-Question:\"
-\"""
- 
-Helpful Answer:"""
- 
-qa_prompt= PromptTemplate.from_template(template)
-
-#template = """You are a customer service of a home improvement store and you are asked to pick products for a customer.
-#Question: {question}
-#"""
-## Answer: Return the list of items only containing descriptions in JSON String Array format.
-
-#product_list_prompt = PromptTemplate.from_template(template)
-
-#template = """You are a friendly, conversational home improvement store shopping assistant. Use the following context including product names and descriptions to show the shopper whats available, help find what they want, and answer any questions.
- 
-#It's ok if you don't know the answer.
-#Context:\"""
- 
-#{context}
-#\"""
-#History:\"""
-
-#{chat_history}
-
-#\"""
-#Question:\"
-#\"""
- 
-#Helpful Answer:
-#"""
-llm = OpenAI(temperature=0)
-#qa_prompt = PromptTemplate.from_template(template)
-
-question_generator = LLMChain(
-    llm=llm,
-    prompt=product_list_prompt
-)
-
-doc_chain = load_qa_chain(
-    llm=llm,
-    chain_type="stuff",
-    prompt=qa_prompt
-)
-
-#query = 
-
-# chain = LLMChain(prompt=prompt, llm=cohere)
-# chain = ConversationalRetrievalChain.from_llm(
-#     cohere, retriever=product_store.as_retriever())
-chatbot = ConversationalRetrievalChain(
-    retriever=retriever,
-    combine_docs_chain=doc_chain,
-    question_generator=question_generator
-)
 
 if 'history' not in st.session_state:
-    st.session_state['history'] = []
+    st.session_state['history'] = {
+        "English": [],
+        "Thai": []
+    }
+
+st.set_page_config(layout="wide")
+
+with st.sidebar:
+    lang = st.radio(
+        "Chat language",
+        ["English", "Thai"],
+        captions=[".", "Experimental"])
+
+chatbot = create_chatbot(lang)
 
 
-def conversational_chat(query):
-    result = result = chatbot(
-        {"question": query, "chat_history": st.session_state['history']}
-    )
-    st.session_state['history'].append((result["question"], result["answer"]))
-
-    return result["answer"]
-
-
-for (query, answer) in st.session_state['history']:
+# Display chat messages from history on app rerun
+for (query, answer) in st.session_state['history'][lang]:
     with st.chat_message("User"):
-        st.write(query)
+        st.markdown(query)
     with st.chat_message("Bot"):
-        st.write(answer)
+        st.markdown(answer)
 
-# I'd like to build a small fish tank. Could you suggest the products I need to purchase?
-prompt = st.chat_input(placeholder="What do you want to build?")
+prompt = st.chat_input(placeholder="Ask chatbot")
 if prompt:
-    answer = conversational_chat(prompt)
-    (answer)
+    # Display user message in chat message container
+    with st.chat_message("User"):
+        st.markdown(prompt)
+    # Display assistant response in chat message container
+    with st.chat_message("Bot"):
+        st_callback = StreamlitCallbackHandler(st.container())
+        result = result = chatbot.invoke({
+            "input": prompt,
+            "chat_history": st.session_state['history'][lang]
+        }, config={"callbacks": [st_callback]})
+        st.session_state['history'][lang].append((prompt, result["output"]))
+        st.markdown(result["output"])
