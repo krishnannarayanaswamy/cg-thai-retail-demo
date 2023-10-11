@@ -12,7 +12,8 @@ import KeywordSection from './components/KeywordSection';
 
 
 const App = () => {
-	const api_host = "http://localhost:9000"
+	//const api_host = "http://localhost:9000"
+	const api_host = "http://44.204.232.212:9000"
 	const [storedValues, setStoredValues] = useState([]);
 	const [products, setProducts] = useState([]);
 	const [keywords, setKeywords] = useState([]);
