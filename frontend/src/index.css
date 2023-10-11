@@ -145,9 +145,75 @@ button {
   object-fit: contain;
 }
 
+.card{
+  margin: 20px;
+}
+
 @media only screen and (max-width: 767px) {
   .card img {
     width: 200%;
     min-width: 50px;    
   }
   }
+  .grid-container {
+    display: flex;
+    justify-content: center;
+  }
+  
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* Adjust the number of columns as needed */
+    gap: 10px; /* Adjust the gap between buttons as needed */
+  }
+  
+  .grid-item {
+    padding: 10px;
+    text-align: center;
+    background-color: #f2f2f2;
+  }
+
+  .loader {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+  
+  .spinner {
+    width: 50px;
+    height: 50px;
+    border: 6px solid #f3f3f3;
+    border-top: 6px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  th,
+  td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  th {
+    background-color: #f2f2f2;
+    color: #333;
+    font-weight: bold;
+  }
+  
+  
+  
+  img {
+    width: 200%;    
+  }
+  

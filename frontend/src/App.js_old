@@ -3,26 +3,21 @@ import { Configuration, OpenAIApi } from 'openai';
 import FormSection from './components/FormSection';
 import AnswerSection from './components/AnswerSection';
 
-
 import React, {useEffect, useState} from 'react';
 import { Hint } from 'react-autocomplete-hint';
-
+import Iframe from 'react-iframe'
 import axios from 'axios';
-import KeywordSection from './components/KeywordSection';
 
 
 const App = () => {
-	const api_host = "http://localhost:9000"
+
 	const [storedValues, setStoredValues] = useState([]);
 	const [products, setProducts] = useState([]);
-	const [keywords, setKeywords] = useState([]);
 	const [hintData, setHintData] = useState([])
-	const [loading, setLoading] = useState(false);
 	const [text, setText] = useState('')
-	const [language, setLanguage] = useState('')
 
 	const getData = async () => {
-		const res = await axios.get(`${api_host}/getbrand`)
+		const res = await axios.get('http://localhost:9000/getbrand')
 			setHintData(res.data.brands)	
 	  }
 	
@@ -30,19 +25,7 @@ const App = () => {
 		getData()
 	  },[])
 
-	const updateKeywords = (newKeywords) => {
-		setKeywords(newKeywords);
-	};
-
-	const Loader = () => {
-		return (
-		  <div className="loader">
-			<div className="spinner"></div>
-		  </div>
-		);
-	  };
-
-	  const ProductCard = ({ product }) => {
+	const ProductCard = ({ product }) => {
 		return (
 		  <div className="card">
 			<table>
@@ -62,45 +45,24 @@ const App = () => {
 	  };
 	
 
-	const getRecommendation = async (kw, index) => {
-		setLoading(true)				
-		const response = await axios.post(`${api_host}/selectitems`, { products: products, keyword:kw , index: index, language: language});
-		if (response.data.botresponse) {
-			setStoredValues([
-				{					
-					answer: response.data.botresponse,
-					english_answer: response.data.english_response
-				}					
-			]);
-			setLoading(false)			
-		}		
-	}
-
 	const generateResponse = async (newQuestion, setNewQuestion) => {
 
 		try {
-			
-			setKeywords([])
-			setStoredValues([])
-			setLoading(true)			
-			const response = await axios.post(`${api_host}/similaritems`, { newQuestion, text });
+			const response = await axios.post('http://localhost:9000/similaritems', { newQuestion, text });
 			if (response.data.botresponse) {
 				setStoredValues([
 					{
 						question: newQuestion,
-						// answer: response.data.botresponse,
-						// english_answer: response.data.english_response
-					}					
+						answer: response.data.botresponse,
+					},
+					...storedValues,
 				]);
-				setNewQuestion('');									
+				setNewQuestion('');	
 			}
 
 			setProducts(response.data.products);
-			setLanguage(response.data.language);
-			setLoading(false)			
-			const k = await axios.post(`${api_host}/getkeywords`, { products: response.data.products, language: response.data.language });
-			//const kw = [{'Price':''}, {'Quality':''}]			
-			setKeywords([...new Set(k.data.keywords)])
+			setText('')
+			
 		  } catch (error) {
 			console.error(error);
 		  }
@@ -111,7 +73,7 @@ const App = () => {
 	return (
 		<div>
 			<div className="header-section">
-				<h1 style={{ fontSize: 18 }}>Generative AI Retail Product Recommendations demo powered by Astra Vector Search</h1>
+				<h1 style={{ fontSize: 18 }}>Generative AI Retail Product Recommendations demo powered by Astra VectorDB</h1>
 				{storedValues.length < 1 && (
 					<p>
 						Please type what you looking for
@@ -132,17 +94,17 @@ const App = () => {
 				</div>
 			</div>
 
-			{loading ? <Loader /> 
-			: <div>
-			<FormSection generateResponse={generateResponse}/>
-			<KeywordSection keywords={keywords} getRecommendation={getRecommendation} />
+			<FormSection generateResponse={generateResponse} />
+
 			{storedValues.length > 0 && <AnswerSection storedValues={storedValues} />}
-			
-			<ProductCard product={products} /></div>
-			}
+
+			<ProductCard product={products} />
 		
 
+		
 		</div>
+
+
 	);
 };
 
